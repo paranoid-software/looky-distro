@@ -98,7 +98,6 @@ services:
       MALLOY_SERVICE_URL: http://query-engine:3000
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
-      AUTH_DB_URL: "${AUTH_DB_URL:-postgresql://looky:looky@postgres:5432/looky_ui}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
       INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
       STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
