@@ -1,0 +1,157 @@
+# looky — Images from GHCR
+#
+# Usage:
+#   docker compose --env-file .env -f docker-compose.yml up -d
+#
+# Requires: IMAGE_TAG, POSTGRES_DATA_PATH, WORKSPACES_PATH in .env
+# Ports: app 8000, postgres 55432, malloy 3002, redis 6379
+# Project name: COMPOSE_PROJECT_NAME (default: looky)
+
+name: ${COMPOSE_PROJECT_NAME:-looky}
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-looky}
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - default
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+
+  ui-index-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${UI_INDEX_POSTGRES_DB:-looky_ui}"
+      POSTGRES_USER: "${UI_INDEX_POSTGRES_USER:-looky}"
+      POSTGRES_PASSWORD: "${UI_INDEX_POSTGRES_PASSWORD:-looky}"
+    volumes:
+      - "${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data"
+    networks:
+      - default
+    ports:
+      - "${UI_INDEX_POSTGRES_HOST_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${UI_INDEX_POSTGRES_USER:-looky} -d ${UI_INDEX_POSTGRES_DB:-looky_ui}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db-init:
+    image: ghcr.io/paranoid-software/looky/schema:${IMAGE_TAG:-latest}
+    depends_on:
+      ui-index-postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: ui-index-postgres
+      PGPORT: "5432"
+      PGDATABASE: "${UI_INDEX_POSTGRES_DB:-looky_ui}"
+      PGUSER: "${UI_INDEX_POSTGRES_USER:-looky}"
+      PGPASSWORD: "${UI_INDEX_POSTGRES_PASSWORD:-looky}"
+    command: ["psql", "-f", "/schema/init.sql"]
+    networks:
+      - default
+    restart: "no"
+
+  db-migrate:
+    image: ghcr.io/paranoid-software/looky/schema:${IMAGE_TAG:-latest}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: ui-index-postgres
+      PGPORT: "5432"
+      PGDATABASE: "${UI_INDEX_POSTGRES_DB:-looky_ui}"
+      PGUSER: "${UI_INDEX_POSTGRES_USER:-looky}"
+      PGPASSWORD: "${UI_INDEX_POSTGRES_PASSWORD:-looky}"
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "/schema/run-migrations.sh"]
+    networks:
+      - default
+    restart: "no"
+
+  query-engine:
+    image: ghcr.io/paranoid-software/looky/query-engine:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "3000"
+      WORKSPACES_ROOT: /workspaces
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+    volumes:
+      - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
+    networks:
+      - default
+    ports:
+      - "${MALLOY_SERVICE_HOST_PORT:-3002}:3000"
+
+  app:
+    image: ghcr.io/paranoid-software/looky/app:${IMAGE_TAG:-latest}
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      query-engine:
+        condition: service_started
+    environment:
+      PORT: "8000"
+      MALLOY_SERVICE_URL: http://query-engine:3000
+      WORKSPACES_ROOT: /workspaces
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      AUTH_DB_URL: "${AUTH_DB_URL:-postgresql://looky:looky@ui-index-postgres:5432/looky_ui}"
+      LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
+      INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
+      STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
+      STYTCH_SECRET: "${STYTCH_SECRET:-}"
+      STYTCH_ENV: "${STYTCH_ENV:-test}"
+      STYTCH_PROJECT_TYPE: "${STYTCH_PROJECT_TYPE:-b2b}"
+      STYTCH_ORGANIZATION_ID: "${STYTCH_ORGANIZATION_ID:-}"
+      UI_INDEX_ENABLED: "${UI_INDEX_ENABLED:-true}"
+      UI_INDEX_DB_URL: "${UI_INDEX_DB_URL:-postgresql://looky:looky@ui-index-postgres:5432/looky_ui}"
+      UI_INDEX_TENANT_ID: "${UI_INDEX_TENANT_ID:-default}"
+      UI_INDEX_WATCHER_ENABLED: "${UI_INDEX_WATCHER_ENABLED:-true}"
+      UI_INDEX_WATCHER_DEBOUNCE_MS: "${UI_INDEX_WATCHER_DEBOUNCE_MS:-500}"
+    volumes:
+      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+    networks:
+      default:
+        aliases:
+          - looky-app
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
+
+  export-scheduler:
+    image: ghcr.io/paranoid-software/looky/export-engine:${IMAGE_TAG:-latest}
+    depends_on:
+      - redis
+      - app
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      APP_BASE_URL: http://looky-app:8000
+      WORKSPACES_ROOT: /workspaces
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      EXPORT_QUEUE_KEY: looky:exports:jobs
+      EXPORT_SCHEDULER_POLL_SECONDS: "15"
+    volumes:
+      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+    networks:
+      - default
+    command: ["python", "-m", "export_engine.scheduler"]
+
+  export-worker:
+    image: ghcr.io/paranoid-software/looky/export-engine:${IMAGE_TAG:-latest}
+    depends_on:
+      - redis
+      - app
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      APP_BASE_URL: http://looky-app:8000
+      WORKSPACES_ROOT: /workspaces
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      EXPORT_QUEUE_KEY: looky:exports:jobs
+      EXPORT_STATUS_TTL_SECONDS: "604800"
+    volumes:
+      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+    networks:
+      - default
+    command: ["python", "-m", "export_engine.worker"]
