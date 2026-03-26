@@ -99,6 +99,7 @@ services:
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
+      EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       STATIC_ASSET_VERSION: "${STATIC_ASSET_VERSION}"
       INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
       STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
@@ -125,6 +126,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       APP_BASE_URL: http://looky-app:8000
+      EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
@@ -143,6 +145,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       APP_BASE_URL: http://looky-app:8000
+      EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs

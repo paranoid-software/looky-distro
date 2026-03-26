@@ -25,6 +25,12 @@ Fill these in `.env` before first run:
 openssl rand -hex 32
 ```
 
+**EXPORT_ENGINE_SHARED_TOKEN** (shared secret between `app` and `export-engine` for scheduled PDF renders):
+
+```bash
+openssl rand -hex 32
+```
+
 **INVITATION_TOKEN_ENCRYPTION_KEY** (Fernet key for invitation tokens):
 
 ```bash
@@ -32,6 +38,8 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ```
 
 **STYTCH_*** — Get from [Stytch Dashboard](https://dashboard.stytch.com/) (Project ID, Secret, etc.).
+
+**STATIC_ASSET_VERSION** should be set to the asset version shipped with the release. In the standard image flow this should normally match `IMAGE_TAG`.
 
 ## Ports
 
