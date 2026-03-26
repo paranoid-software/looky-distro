@@ -78,7 +78,7 @@ services:
     environment:
       PORT: "3000"
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
     networks:
@@ -97,8 +97,9 @@ services:
       PORT: "8000"
       MALLOY_SERVICE_URL: http://query-engine:3000
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
+      STATIC_ASSET_VERSION: "${STATIC_ASSET_VERSION}"
       INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
       STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
       STYTCH_SECRET: "${STYTCH_SECRET:-}"
@@ -125,7 +126,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_BASE_URL: http://looky-app:8000
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_SCHEDULER_POLL_SECONDS: "15"
     volumes:
@@ -143,7 +144,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_BASE_URL: http://looky-app:8000
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/paranoid}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_STATUS_TTL_SECONDS: "604800"
     volumes:
