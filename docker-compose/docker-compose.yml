@@ -12,6 +12,9 @@ name: ${COMPOSE_PROJECT_NAME:-looky}
 networks:
   default:
     name: ${COMPOSE_PROJECT_NAME:-looky}
+  thinker:
+    external: true
+    name: thinker
 
 services:
   redis:
@@ -83,6 +86,7 @@ services:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
     networks:
       - default
+      - thinker
     ports:
       - "${MALLOY_SERVICE_HOST_PORT:-3002}:3000"
 
@@ -92,6 +96,8 @@ services:
       db-migrate:
         condition: service_completed_successfully
       query-engine:
+        condition: service_started
+      redis:
         condition: service_started
     environment:
       PORT: "8000"
@@ -108,7 +114,10 @@ services:
       STYTCH_PROJECT_TYPE: "${STYTCH_PROJECT_TYPE:-b2b}"
       STYTCH_ORGANIZATION_ID: "${STYTCH_ORGANIZATION_ID:-}"
       LOOKY_DB_URL: "${LOOKY_DB_URL:-postgresql://looky:looky@postgres:5432/looky_ui}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS: "${WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS:-500}"
+      VALIDATION_JOB_TTL_MINUTES: "${VALIDATION_JOB_TTL_MINUTES:-30}"
+      VALIDATION_JOB_MAX_WORKERS: "${VALIDATION_JOB_MAX_WORKERS:-4}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
