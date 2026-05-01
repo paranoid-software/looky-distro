@@ -82,6 +82,7 @@ services:
       PORT: "3000"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
     networks:
@@ -114,10 +115,13 @@ services:
       STYTCH_PROJECT_TYPE: "${STYTCH_PROJECT_TYPE:-b2b}"
       STYTCH_ORGANIZATION_ID: "${STYTCH_ORGANIZATION_ID:-}"
       LOOKY_DB_URL: "${LOOKY_DB_URL:-postgresql://looky:looky@postgres:5432/looky_ui}"
-      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
+      DEFAULT_MESSAGING_URL: "${DEFAULT_MESSAGING_URL:-}"
+      BQ_JOBS_STATS_EXCHANGE: "${BQ_JOBS_STATS_EXCHANGE:-}"
       WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS: "${WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS:-500}"
       VALIDATION_JOB_TTL_MINUTES: "${VALIDATION_JOB_TTL_MINUTES:-30}"
       VALIDATION_JOB_MAX_WORKERS: "${VALIDATION_JOB_MAX_WORKERS:-4}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
@@ -133,13 +137,14 @@ services:
       - redis
       - app
     environment:
-      REDIS_URL: redis://redis:6379/0
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
       APP_BASE_URL: http://looky-app:8000
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_SCHEDULER_POLL_SECONDS: "15"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
@@ -152,13 +157,14 @@ services:
       - redis
       - app
     environment:
-      REDIS_URL: redis://redis:6379/0
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
       APP_BASE_URL: http://looky-app:8000
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_STATUS_TTL_SECONDS: "604800"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
