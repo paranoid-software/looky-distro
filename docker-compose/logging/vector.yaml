@@ -1,0 +1,61 @@
+# Host-level log shipper for the looky stack.
+#
+# Reads stdout of every container the local Docker daemon knows about,
+# normalizes the line into JSON, and publishes to the topic exchange
+# `logs-upstream` in vhost `looky`. Routing key is
+# `<container_name>.<level>` so consumers self-subscribe by binding
+# patterns; no filtering happens here.
+#
+# Same content on Mac dev and Linux prod — only env vars (DOCKER_HOST,
+# RABBITMQ_HOST, LOOKY_LOGS_PASSWORD) differ. See README.md.
+#
+# Contract: SPEC_LOG_SHIPPER.md (workspace root).
+
+sources:
+  containers:
+    type: docker_logs
+    docker_host: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+    auto_partial_merge: true   # merges Docker's 16KB-split lines back
+
+transforms:
+  to_canonical:
+    type: remap
+    inputs: ["containers"]
+    source: |
+      cname = string!(.container_name)
+      # RabbitMQ topic segments are dot-delimited; container names
+      # may legally contain dots (e.g. "my.app.1"). Sanitize so the
+      # routing key remains <container>.<level> as one+one segment.
+      cname_safe = replace(cname, ".", "-")
+
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        # Looky containers — already in canonical shape per
+        # SPEC_CENTRALIZED_LOGGING.md §1. Trust it.
+        . = parsed
+        if !exists(.level) { .level = "info" }
+      } else {
+        # Non-canonical line (n8n, DBs, plain `console.log`, boot
+        # text). Wrap minimally so the routing key still resolves.
+        . = {
+          "ts": format_timestamp!(now(), format: "%Y-%m-%dT%H:%M:%S%.3fZ"),
+          "level": "info",
+          "logger": "raw",
+          "message": .message
+        }
+      }
+      .container_name = cname_safe
+
+sinks:
+  rabbit:
+    type: amqp
+    inputs: ["to_canonical"]
+    connection_string: "amqp://looky_logs:${LOOKY_LOGS_PASSWORD}@${RABBITMQ_HOST:-localhost}:5672/looky"
+    exchange: "logs-upstream"
+    routing_key: "{{ .container_name }}.{{ .level }}"
+    encoding:
+      codec: json
+    buffer:
+      type: memory
+      max_events: 10000
+      when_full: drop_newest
