@@ -1,96 +1,84 @@
-# Host-level log shipper — install + setup
+# minion — host-level container log shipper
 
-This directory holds the Vector config and the install steps for
-shipping every container's stdout to RabbitMQ. Architecture + contract
-are documented internally in the looky workspace
-(`SPEC_LOG_SHIPPER.md`); this README is the **operator-facing recipe**
-for deploying the shipper alongside the looky-distro stack.
+This directory holds the Vector config and operator recipe for shipping
+every Docker container's stdout from this server (`minion`) into the
+RabbitMQ topic exchange **`containers-logs`** on vhost **`minion`** of
+the in-stack broker (`the-rabbit`).
 
-Two host environments are supported, with the same `vector.yaml`:
+The shipper itself runs on the host as an apt-installed Vector daemon.
+It reads `/var/run/docker.sock`, normalizes each line to JSON, and
+publishes one AMQP message per line. Subscribers declare queues against
+the exchange with whatever routing-key pattern they need; everything
+else is dropped at the broker.
 
-- **Mac dev** — Vector via Homebrew, talking to the Docker Desktop socket.
-- **Ubuntu ARM (OCI prod)** — Vector via apt, talking to the host Docker socket.
+## Routing-key contract
 
-Pick your section below.
+```
+<project>.<container_name>.<stream>
+```
+
+Always three segments, all derived from Docker-level metadata. The
+shipper never looks inside the message body.
+
+- **project** — `com.docker.compose.project` label of the container.
+  For containers started outside of compose this falls back to
+  `standalone`. Any literal `.` becomes `-`.
+- **container_name** — Docker container name with `.` replaced by `-`
+  so segment count stays predictable.
+- **stream** — `stdout` or `stderr`, straight from the Docker daemon.
+
+Whether a given line happens to be JSON or plain text is a
+consumer-side concern. The full event Vector publishes does include
+other Docker metadata as fields in the message body (image,
+container_id, host, timestamp, labels, …) — those are available to
+consumers but **not** part of the routing key.
+
+Topic-exchange wildcards reminder: `*` matches exactly one segment,
+`#` matches zero or more.
 
 ---
 
-## 0. RabbitMQ one-time setup (both environments)
+## 1. Broker prerequisites (one-time, on the-rabbit)
 
-Done once per broker. Adjust `BROKER` to match the container name of
-your rabbit instance:
+`the-rabbit` runs as a docker container on this host
+(`flou-the-rabbit` is the actual container name). Drive the setup
+through `docker exec`:
 
 ```bash
-BROKER=rabbitmq-4-testing   # dev local; change for prod
+BROKER=flou-the-rabbit
 
-# Write-only user, scoped to logs-upstream.*
-docker exec $BROKER rabbitmqctl add_user looky_logs <PASSWORD>
+# Vhost dedicated to this server's container logs
+docker exec $BROKER rabbitmqctl add_vhost minion
+
+# Write-only user, scoped to the containers-logs exchange
+docker exec $BROKER rabbitmqctl add_user minion_logs <PASSWORD>
 docker exec $BROKER rabbitmqctl set_permissions \
-  -p looky looky_logs "" "logs-upstream\..*" ""
+  -p minion minion_logs "" "containers-logs.*" ""
 
-# Topic exchange
+# Topic exchange the shipper publishes into
 docker exec $BROKER rabbitmqadmin declare exchange \
-  --vhost=looky name=logs-upstream type=topic durable=true \
+  --vhost=minion name=containers-logs type=topic durable=true \
   -u guest -p guest
 ```
 
-Save `<PASSWORD>` — you'll set it as `LOOKY_LOGS_PASSWORD` in §1 or §2.
+Save `<PASSWORD>` — it goes into `MINION_LOGS_PASSWORD` in §2.3.
 
 Verify:
+
 ```bash
-docker exec $BROKER rabbitmqadmin list exchanges --vhost=looky
-# logs-upstream | topic | durable=true
+docker exec $BROKER rabbitmqadmin list exchanges --vhost=minion
+# containers-logs | topic | durable=true
 ```
 
 ---
 
-## 1. Mac dev — install steps
+## 2. Install Vector on minion (Ubuntu ARM)
+
+OCI Ampere is `aarch64`; Vector publishes arm64 packages through its
+apt repo, so the standard install works.
 
 ```bash
-# 1.1 Install
-brew install vectordotdev/brew/vector
-vector --version
-
-# 1.2 Place the config
-mkdir -p ~/.config/vector
-cp /path/to/looky-distro/docker-compose/logging/vector.yaml ~/.config/vector/vector.yaml
-
-# 1.3 Set env vars (append to ~/.zshrc or ~/.bashrc)
-cat >> ~/.zshrc <<'EOF'
-export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
-export RABBITMQ_HOST="localhost"
-export LOOKY_LOGS_PASSWORD="<paste from §0>"
-EOF
-source ~/.zshrc
-
-# 1.4 Test in foreground (Ctrl-C when satisfied)
-vector --config ~/.config/vector/vector.yaml
-# Expected: "Vector has started" + "started healthcheck"; no AMQP errors.
-
-# 1.5 Run as a service
-brew services start vector
-brew services list | grep vector   # status: started
-```
-
-Vector's own log:
-```bash
-tail -f /opt/homebrew/var/log/vector.log
-```
-
-Reload after editing `~/.config/vector/vector.yaml`:
-```bash
-brew services restart vector
-```
-
----
-
-## 2. Ubuntu ARM (OCI prod) — install steps
-
-OCI Ampere instances are aarch64; Vector publishes arm64 packages
-through its apt repo, so the standard install works.
-
-```bash
-# 2.1 Add the apt repo + install
+# 2.1 apt repo + install
 curl -1sLf 'https://repositories.timber.io/public/vector/cfg/setup/bash.deb.sh' \
   | sudo -E bash
 sudo apt update
@@ -100,20 +88,19 @@ vector --version
 
 # 2.2 Place the config
 sudo install -o root -g root -m 0644 \
-  /path/to/looky-distro/docker-compose/logging/vector.yaml /etc/vector/vector.yaml
+  /home/ubuntu/code/looky-distro/docker-compose/logging/vector.yaml \
+  /etc/vector/vector.yaml
 
-# 2.3 Set env vars in /etc/default/vector (the apt package's standard
-# place for systemd unit overrides)
+# 2.3 Env vars (the apt unit reads /etc/default/vector)
 sudo tee /etc/default/vector > /dev/null <<'EOF'
 DOCKER_HOST=unix:///var/run/docker.sock
-RABBITMQ_HOST=<host_or_ip_of_broker>
-LOOKY_LOGS_PASSWORD=<paste from §0>
+RABBITMQ_HOST=localhost
+MINION_LOGS_PASSWORD=<paste from §1>
 EOF
 sudo chmod 0640 /etc/default/vector
-sudo chown root:vector /etc/default/vector   # only vector + root read it
+sudo chown root:vector /etc/default/vector
 
-# 2.4 Vector's apt package runs as user `vector`. Add it to the
-# docker group so it can read /var/run/docker.sock.
+# 2.4 The vector user needs to read /var/run/docker.sock
 sudo usermod -aG docker vector
 
 # 2.5 Enable + start
@@ -122,95 +109,95 @@ sudo systemctl status vector
 ```
 
 Vector's own log:
+
 ```bash
 sudo journalctl -u vector -f
 ```
 
 Reload after editing `/etc/vector/vector.yaml`:
+
 ```bash
 sudo systemctl restart vector
 ```
 
+`RABBITMQ_HOST=localhost` works because `flou-the-rabbit` publishes
+`5672` on the host (`0.0.0.0:5672->5672/tcp`). If that mapping ever
+changes, point `RABBITMQ_HOST` at whatever address the host can reach.
+
 ---
 
-## 3. Verification (either environment)
+## 3. Verify
 
-Bind a tap queue that receives everything, generate some traffic,
-read what landed:
+The shipper only publishes; it does not create queues. Verify by
+checking that Vector is healthy and that the broker is recording
+inbound publishes on the exchange.
 
 ```bash
-BROKER=rabbitmq-4-testing
-RMQ="docker exec $BROKER rabbitmqadmin --vhost=looky -u guest -p guest"
+# Daemon is up, no AMQP errors in its log
+systemctl status vector
+sudo journalctl -u vector -n 100 --no-pager | grep -iE 'error|amqp' || echo "no errors"
 
-# Tap queue
-$RMQ declare queue name=test-tap durable=false
-$RMQ declare binding source=logs-upstream destination=test-tap routing_key="#"
-
-# Generate a log line (4xx is fast)
-curl -X POST http://localhost:3002/probe \
-  -H 'Content-Type: application/json' \
-  -d '{"sourceAlias":"none"}'
-
-# Read what arrived
-$RMQ get queue=test-tap count=10
+# Inbound publish rate on the exchange (look for "publish_in" > 0)
+docker exec flou-the-rabbit rabbitmqctl list_exchanges \
+  --vhost=minion name type message_stats.publish_in_details.rate
 ```
 
-Expected: JSON events with `container_name`, `level`, `message`, and
-the looky canonical shape for looky containers (extra fields like
-`request_id`, `workspace_id`, etc.).
+You can also open the RabbitMQ management UI
+(`http://<minion-host>:15672`, log into vhost `minion`, **Exchanges →
+containers-logs**) and watch the message-rate sparkline tick up as
+containers emit lines.
 
-If nothing arrives:
+If nothing is publishing:
 
 | Symptom | Check |
 |---|---|
-| Vector not running | `brew services list \| grep vector` (mac) / `systemctl status vector` (linux) |
-| AMQP errors in Vector log | password / RABBITMQ_HOST / vhost permissions (re-run §0) |
-| Vector running but no enrichment fields | `DOCKER_HOST` value, the unix socket file actually exists at that path |
-| Vector running but cannot read socket | `vector` user not in `docker` group (linux), or Docker Desktop not running (mac) |
+| Vector not running | `systemctl status vector` |
+| AMQP errors in vector log | password / `RABBITMQ_HOST` / vhost permissions (re-do §1) |
+| Vector running but no events | `DOCKER_HOST` value, the unix socket file actually exists at that path |
+| Vector running but socket access denied | `vector` user not in `docker` group — `usermod -aG docker vector`, then `systemctl restart vector` |
 
 ---
 
-## 4. Subscribing — common patterns
+## 4. Routing-key reference (for whoever subscribes later)
 
-After Vector is shipping, declaring a stream is two `rabbitmqadmin`
-commands and zero Vector changes. The `vector.yaml` itself is
-immutable from this point.
+Queues are **not** part of this deployment — Vector only publishes to
+the exchange. If/when someone needs a stream of these logs, they
+declare their own queue and bind it themselves. The patterns below are
+just reference for what those bindings can look like.
+
+| Goal | `routing_key` |
+|---|---|
+| Everything (firehose) | `#` |
+| All stderr from any container, any project | `*.*.stderr` |
+| Everything from one compose project | `<project>.#` |
+| Only stderr from one project | `<project>.*.stderr` |
+| Both streams from one container | `*.<container>.#` |
+| Only stderr from one container | `*.<container>.stderr` |
+| All standalone (non-compose) containers | `standalone.#` |
+| A specific subset of containers/projects | one binding per pattern; RabbitMQ unions them on the same queue |
+
+`<project>` is the `com.docker.compose.project` label
+(`docker inspect <container> --format '{{ index .Config.Labels "com.docker.compose.project" }}'`).
+`<container>` is the Docker name from
+`docker ps --format '{{.Names}}'`. Any literal `.` in either becomes
+`-` in the routing key — see the contract at the top.
+
+If you need to filter by severity / logger / request_id / etc., do it
+on the consumer side after parsing the message body — those fields are
+not in the routing key by design.
+
+---
+
+## 5. Updating the shipper config
+
+Edit `vector.yaml` in this repo, then on minion:
 
 ```bash
-RMQ="docker exec $BROKER rabbitmqadmin --vhost=looky -u guest -p guest"
-
-# Pattern: only looky errors
-$RMQ declare queue name=looky-errors durable=true
-$RMQ declare binding source=logs-upstream destination=looky-errors \
-  routing_key="looky-dev-app-1.error"
-$RMQ declare binding source=logs-upstream destination=looky-errors \
-  routing_key="looky-dev-query-engine-1.error"
-$RMQ declare binding source=logs-upstream destination=looky-errors \
-  routing_key="looky-dev-export-scheduler-1.error"
-$RMQ declare binding source=logs-upstream destination=looky-errors \
-  routing_key="looky-dev-export-worker-1.error"
-
-# Pattern: any error from any container
-$RMQ declare queue name=any-errors durable=true
-$RMQ declare binding source=logs-upstream destination=any-errors \
-  routing_key="*.error"
-
-# Pattern: full stream of a single container (e.g. mongo)
-$RMQ declare queue name=mongo-stream durable=true
-$RMQ declare binding source=logs-upstream destination=mongo-stream \
-  routing_key="oom-mongo.#"
+sudo install -o root -g root -m 0644 \
+  /home/ubuntu/code/looky-distro/docker-compose/logging/vector.yaml \
+  /etc/vector/vector.yaml
+sudo systemctl restart vector
 ```
-
-Same queue can carry multiple bindings — RabbitMQ unions them.
-
----
-
-## 5. Updating the config
-
-Edit `looky-distro/docker-compose/logging/vector.yaml` in the repo. Then on each host:
-
-- **Mac**: `cp` to `~/.config/vector/vector.yaml` + `brew services restart vector`.
-- **Linux**: `sudo cp` to `/etc/vector/vector.yaml` + `sudo systemctl restart vector`.
 
 Vector also supports `--watch-config` for hot reload without restart;
 see the upstream docs if you want that.
