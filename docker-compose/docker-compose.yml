@@ -23,7 +23,7 @@ services:
     networks:
       - default
     ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
+      - "${DEFAULT_KV_HOST_PORT:-6379}:6379"
 
   postgres:
     image: postgres:16-alpine
@@ -81,8 +81,8 @@ services:
     environment:
       PORT: "3000"
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
-      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
+      LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
     networks:
@@ -104,24 +104,24 @@ services:
       PORT: "8000"
       MALLOY_SERVICE_URL: http://query-engine:3000
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       STATIC_ASSET_VERSION: "${STATIC_ASSET_VERSION}"
       INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
       STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
       STYTCH_SECRET: "${STYTCH_SECRET:-}"
-      STYTCH_ENV: "${STYTCH_ENV:-test}"
-      STYTCH_PROJECT_TYPE: "${STYTCH_PROJECT_TYPE:-b2b}"
+      STYTCH_ENV: "${STYTCH_ENV:-}"
+      STYTCH_PROJECT_TYPE: "${STYTCH_PROJECT_TYPE:-}"
       STYTCH_ORGANIZATION_ID: "${STYTCH_ORGANIZATION_ID:-}"
-      LOOKY_DB_URL: "${LOOKY_DB_URL:-postgresql://looky:looky@postgres:5432/looky_ui}"
-      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
+      LOOKY_DB_URL: "${LOOKY_DB_URL:-}"
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-}"
       DEFAULT_MESSAGING_URL: "${DEFAULT_MESSAGING_URL:-}"
       BQ_JOBS_STATS_EXCHANGE: "${BQ_JOBS_STATS_EXCHANGE:-}"
-      WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS: "${WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS:-500}"
-      VALIDATION_JOB_TTL_MINUTES: "${VALIDATION_JOB_TTL_MINUTES:-30}"
-      VALIDATION_JOB_MAX_WORKERS: "${VALIDATION_JOB_MAX_WORKERS:-4}"
-      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS: "${WORKSPACE_CONTENT_WATCHER_DEBOUNCE_MS:-}"
+      VALIDATION_JOB_TTL_MINUTES: "${VALIDATION_JOB_TTL_MINUTES:-}"
+      VALIDATION_JOB_MAX_WORKERS: "${VALIDATION_JOB_MAX_WORKERS:-}"
+      LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
@@ -137,14 +137,14 @@ services:
       - redis
       - app
     environment:
-      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-}"
       APP_BASE_URL: http://looky-app:8000
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_SCHEDULER_POLL_SECONDS: "15"
-      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
@@ -157,14 +157,14 @@ services:
       - redis
       - app
     environment:
-      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-redis://redis:6379/0}"
+      DEFAULT_KV_URL: "${DEFAULT_KV_URL:-}"
       APP_BASE_URL: http://looky-app:8000
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       WORKSPACES_ROOT: /workspaces
-      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-paranoid-software/default}"
+      DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
       EXPORT_QUEUE_KEY: looky:exports:jobs
       EXPORT_STATUS_TTL_SECONDS: "604800"
-      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
     networks:
