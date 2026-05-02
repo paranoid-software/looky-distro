@@ -101,6 +101,10 @@ services:
 
   app:
     image: ghcr.io/paranoid-software/looky/app:${IMAGE_TAG:-latest}
+    # Prod runs gunicorn via ``run.sh`` (image ships it). Dev uses the
+    # image default (``python main.py``) which gives Flask's reloader +
+    # in-browser debugger — appropriate for local iteration only.
+    command: ["bash", "run.sh"]
     depends_on:
       db-migrate:
         condition: service_completed_successfully
