@@ -2,11 +2,11 @@
 
 This stack does **not** run a log shipper as part of `docker compose`.
 Container `stdout`/`stderr` shipping into RabbitMQ is handled by an
-out-of-stack daemon, **`minion-log-shipper`**, which runs on the host
+out-of-stack daemon, **`karotten`**, which runs on the host
 and reads `/var/run/docker.sock`.
 
-Source + install + operator docs:
-[`~/code/minion-log-shipper/`](../../../minion-log-shipper/)
+Source, install, and operator docs:
+<https://github.com/paranoid-software/karotten>
 
 This document describes the **contract** (what subscribers can rely on
 about the messages that arrive in RabbitMQ) so that consumers in this
@@ -58,13 +58,9 @@ whatever routing-key pattern they need. A debug queue
 `containers-logs.debug` bound to `#` is the only one that exists by
 default.
 
-## Operating the shipper on this host
+## The shipper
 
-```bash
-sudo systemctl status minion-log-shipper
-sudo journalctl -u minion-log-shipper -f
-sudo systemctl restart minion-log-shipper
-```
-
-For build, deploy, env vars, and resilience details, see
-[`~/code/minion-log-shipper/README.md`](../../../minion-log-shipper/README.md).
+`karotten` is a small Go daemon that runs on the host (outside this
+stack) and publishes container stdio into `containers-logs` per the
+contract above. Source, build, deploy, env vars, and resilience design
+all live in its own repo: <https://github.com/paranoid-software/karotten>.
