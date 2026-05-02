@@ -22,19 +22,22 @@ shipper's source.
   Docker-level metadata only — the shipper never parses message bodies.
 
 ```
-<project>.<container_name>.<stream>
+<project>.<service>.<stream>
 ```
 
 | Segment | Source | Notes |
 |---|---|---|
 | `project` | `com.docker.compose.project` label of the container | `standalone` for non-compose containers. Any literal `.` becomes `-`. |
-| `container_name` | Docker container name | Any literal `.` becomes `-`. |
+| `service` | `com.docker.compose.service` label of the container | Falls back to the Docker container name for non-compose containers. Any literal `.` becomes `-`. |
 | `stream` | Docker stdio stream | Either `stdout` or `stderr`. |
 
 Topic-exchange wildcards work as usual: `*` matches one segment, `#`
 matches zero or more. So you can subscribe to "any stderr from the
-looky stack" with `my-looky.*.stderr`, "everything from one container"
-with `*.<container>.#`, and so on.
+looky stack" with `my-looky.*.stderr`, "everything from one service"
+with `*.<service>.#`, and so on.
+
+Replicas of a service share the routing key. To differentiate them,
+read `container_id` / `container_name` from the message body.
 
 ## Message body
 
@@ -44,7 +47,8 @@ Each message is a JSON envelope. Fields:
 |---|---|---|
 | `timestamp` | RFC 3339 nano string | When the shipper saw the line (close to when Docker emitted it). |
 | `project` | string | Same as the routing-key segment. |
-| `container_name` | string | Same as the routing-key segment. |
+| `service` | string | Same as the routing-key segment. |
+| `container_name` | string | Docker container name (e.g. `my-looky-app-1`). Useful to differentiate replicas. |
 | `container_id` | string | Short (12-char) Docker container ID. |
 | `image` | string | Image reference the container was started from. |
 | `stream` | string | `stdout` or `stderr`. |
