@@ -86,6 +86,19 @@ services:
 
   query-engine:
     image: ghcr.io/paranoid-software/looky/query-engine:${IMAGE_TAG:-latest}
+    # Hardening: image is distroless (no shell, no apt, no busybox) +
+    # non-root + read-only root FS + all Linux capabilities dropped.
+    # An RCE in this container can run JavaScript but has no shell to
+    # escape to, no toolchain to pivot with, and no writable path
+    # outside /tmp (tmpfs). The workspaces volume is mounted read-only.
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       PORT: "3000"
       WORKSPACES_ROOT: /workspaces
