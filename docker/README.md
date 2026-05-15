@@ -13,7 +13,14 @@ cp docker-compose/.env.example docker-compose/.env
 docker compose --env-file docker-compose/.env -f docker-compose/docker-compose.yml up -d
 ```
 
-**Note:** You do not need to pre-create the Postgres data or workspaces directories. Docker creates them automatically when using bind mounts if they do not exist.
+**Note:** `POSTGRES_DATA_PATH` and `WORKSPACES_PATH` can be left to Docker — it creates the directories on first start when using bind mounts.
+
+`VAULT_DATA_PATH` is the exception: the `secrets-vault` container is distroless and runs as uid `65532`, so it cannot `chown` its own mount. If Docker auto-creates the directory it ends up owned by `root:root`, and every settings PUT will 500 with `EACCES: permission denied, mkdir '/vault-data/...'`. Pre-create it with the right owner before the first `up`:
+
+```bash
+mkdir -p "$VAULT_DATA_PATH"
+sudo chown 65532:65532 "$VAULT_DATA_PATH"
+```
 
 ## Generating keys
 
