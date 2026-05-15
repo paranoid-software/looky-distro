@@ -3,7 +3,20 @@
 # Usage:
 #   docker compose --env-file .env -f docker-compose.yml up -d
 #
-# Requires: IMAGE_TAG, POSTGRES_DATA_PATH, WORKSPACES_PATH in .env
+# Requires in .env:
+#   IMAGE_TAG, POSTGRES_DATA_PATH, WORKSPACES_PATH, VAULT_DATA_PATH,
+#   LOOKY_VAULT_SIGNING_PRIVATE_KEY, LOOKY_VAULT_VERIFY_PUBLIC_KEY
+#
+# Generate the Ed25519 keypair once per deploy:
+#   docker run --rm node:20-slim node -e "
+#     const c = require('crypto');
+#     const { publicKey, privateKey } = c.generateKeyPairSync('ed25519');
+#     const priv = privateKey.export({ format: 'pem', type: 'pkcs8' });
+#     const pub  = publicKey.export({ format: 'pem', type: 'spki' });
+#     console.log('LOOKY_VAULT_SIGNING_PRIVATE_KEY=' + Buffer.from(priv).toString('base64'));
+#     console.log('LOOKY_VAULT_VERIFY_PUBLIC_KEY=' + Buffer.from(pub).toString('base64'));
+#   "
+#
 # Ports: app 8000, postgres 55432, malloy 3002, redis 6379
 # Project name: COMPOSE_PROJECT_NAME (default: looky)
 
@@ -40,7 +53,7 @@ services:
       POSTGRES_USER: "${LOOKY_DB_USER:-looky}"
       POSTGRES_PASSWORD: "${LOOKY_DB_PASSWORD:-looky}"
     volumes:
-      - "${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data"
+      - "${POSTGRES_DATA_PATH:?POSTGRES_DATA_PATH is required — see docker/.env.example}:/var/lib/postgresql/data"
     networks:
       - default
     ports:
@@ -84,6 +97,29 @@ services:
       - default
     restart: "no"
 
+  secrets-vault:
+    image: ghcr.io/paranoid-software/looky/secrets-vault:${IMAGE_TAG:-latest}
+    # Owns ``runtime/sources.runtime.yml`` + ``secrets/*.json`` for every
+    # workspace. Distroless + non-root + read-only + cap_drop:[ALL]: this
+    # is the most-hardened container in the stack because it holds the
+    # raw credentials that bridge to BigQuery / Postgres / etc.
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LOOKY_VAULT_BIND: "0.0.0.0:4000"
+      LOOKY_VAULT_DATA: /vault-data
+      LOOKY_VAULT_VERIFY_PUBLIC_KEY: "${LOOKY_VAULT_VERIFY_PUBLIC_KEY:-}"
+    volumes:
+      - "${VAULT_DATA_PATH:?VAULT_DATA_PATH is required — see docker/.env.example}:/vault-data"
+    networks:
+      - default
+
   query-engine:
     image: ghcr.io/paranoid-software/looky/query-engine:${IMAGE_TAG:-latest}
     # Hardening: image is distroless (no shell, no apt, no busybox) +
@@ -99,13 +135,17 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    depends_on:
+      secrets-vault:
+        condition: service_started
     environment:
       PORT: "3000"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
+      LOOKY_VAULT_URL: http://secrets-vault:4000
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
-      - "${WORKSPACES_PATH:-./workspaces}:/workspaces:ro"
+      - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces:ro"
     networks:
       - default
       - thinker
@@ -125,9 +165,14 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      secrets-vault:
+        condition: service_started
     environment:
       PORT: "8000"
       MALLOY_SERVICE_URL: http://query-engine:3000
+      LOOKY_VAULT_URL: http://secrets-vault:4000
+      LOOKY_VAULT_SIGNING_PRIVATE_KEY: "${LOOKY_VAULT_SIGNING_PRIVATE_KEY:-}"
+      LOOKY_VAULT_TOKEN_TTL_SECONDS: "${LOOKY_VAULT_TOKEN_TTL_SECONDS:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
@@ -148,7 +193,7 @@ services:
       VALIDATION_JOB_MAX_WORKERS: "${VALIDATION_JOB_MAX_WORKERS:-}"
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
-      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+      - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces"
     networks:
       default:
         aliases:
@@ -174,7 +219,7 @@ services:
       EXPORT_SCHEDULER_POLL_SECONDS: "15"
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
-      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+      - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces"
     networks:
       - default
     command: ["python", "-m", "export_engine.scheduler"]
@@ -196,7 +241,7 @@ services:
       EXPORT_STATUS_TTL_SECONDS: "604800"
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
-      - "${WORKSPACES_PATH:-./workspaces}:/workspaces"
+      - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces"
     networks:
       - default
     command: ["python", "-m", "export_engine.worker"]

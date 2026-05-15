@@ -14,6 +14,7 @@ Images are private. **Contact us to obtain pull access** — [your contact info 
 | `ghcr.io/paranoid-software/looky/query-engine` | Malloy runtime |
 | `ghcr.io/paranoid-software/looky/export-engine` | PDF export (scheduler + worker) |
 | `ghcr.io/paranoid-software/looky/schema` | DB init + migrations |
+| `ghcr.io/paranoid-software/looky/secrets-vault` | Workspace-scoped vault for `sources.runtime.yml` + `secrets/*.json` |
 
 Tag format: `yyyymmdd.run_number` (e.g. `20260317.1`). Set `IMAGE_TAG` in your deployment config.
 
