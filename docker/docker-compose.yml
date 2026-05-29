@@ -35,6 +35,7 @@ networks:
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     networks:
       - default
@@ -48,6 +49,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: "${LOOKY_DB_NAME:-looky_ui}"
       POSTGRES_USER: "${LOOKY_DB_USER:-looky}"
@@ -99,6 +101,7 @@ services:
 
   secrets-vault:
     image: ghcr.io/paranoid-software/looky/secrets-vault:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     # Owns ``runtime/sources.runtime.yml`` + ``secrets/*.json`` for every
     # workspace. Distroless + non-root + read-only + cap_drop:[ALL]: this
     # is the most-hardened container in the stack because it holds the
@@ -122,6 +125,7 @@ services:
 
   query-engine:
     image: ghcr.io/paranoid-software/looky/query-engine:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     # Hardening: image is distroless (no shell, no apt, no busybox) +
     # non-root + read-only root FS + all Linux capabilities dropped.
     # An RCE in this container can run JavaScript but has no shell to
@@ -154,6 +158,7 @@ services:
 
   app:
     image: ghcr.io/paranoid-software/looky/app:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     # Prod runs gunicorn via ``run.sh`` (image ships it). Dev uses the
     # image default (``python main.py``) which gives Flask's reloader +
     # in-browser debugger — appropriate for local iteration only.
@@ -206,6 +211,7 @@ services:
 
   export-scheduler:
     image: ghcr.io/paranoid-software/looky/export-engine:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     depends_on:
       redis:
         condition: service_healthy
@@ -228,6 +234,7 @@ services:
 
   export-worker:
     image: ghcr.io/paranoid-software/looky/export-engine:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     depends_on:
       redis:
         condition: service_healthy
