@@ -150,6 +150,7 @@ services:
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces:ro"
+      - "${VALIDATION_STAGING_PATH:?VALIDATION_STAGING_PATH is required — see docker/.env.example}:/workspaces/.validation-staging:ro"
     networks:
       - default
       - thinker
@@ -205,6 +206,7 @@ services:
       LOG_LEVEL: "${LOG_LEVEL:-}"
     volumes:
       - "${WORKSPACES_PATH:?WORKSPACES_PATH is required — see docker/.env.example}:/workspaces"
+      - "${VALIDATION_STAGING_PATH:?VALIDATION_STAGING_PATH is required — see docker/.env.example}:/workspaces/.validation-staging"
     networks:
       default:
         aliases:
