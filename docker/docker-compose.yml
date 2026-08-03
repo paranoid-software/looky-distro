@@ -189,6 +189,12 @@ services:
       EXPORT_ENGINE_SHARED_TOKEN: "${EXPORT_ENGINE_SHARED_TOKEN:-}"
       STATIC_ASSET_VERSION: "${STATIC_ASSET_VERSION}"
       PUBLIC_APP_BASE_URL: "${PUBLIC_APP_BASE_URL:-}"
+      # The agent chat's authoring contract (public llms.txt + page .md).
+      # Required with no default: the app refuses to boot without it.
+      LOOKY_DOCS_BASE_URL: "${LOOKY_DOCS_BASE_URL:?LOOKY_DOCS_BASE_URL is required — see docker/.env.example}"
+      # gunicorn gthread pool per worker (run.sh defaults to 64). Each open
+      # WebSocket holds one thread; the chat connects per turn.
+      APP_THREADS: "${APP_THREADS:-}"
       INVITATION_TOKEN_ENCRYPTION_KEY: "${INVITATION_TOKEN_ENCRYPTION_KEY:-}"
       STYTCH_PROJECT_ID: "${STYTCH_PROJECT_ID:-}"
       STYTCH_SECRET: "${STYTCH_SECRET:-}"
