@@ -123,6 +123,34 @@ services:
     networks:
       - default
 
+  demo-engine:
+    image: ghcr.io/paranoid-software/looky/demo-engine:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Demo MySQL account provisioner (SPEC_0053). Same hardening posture
+    # as the vault: it holds the only CREATE USER/DROP USER credential in
+    # the stack, scoped to the demo schemas — never root. Writes nothing
+    # anywhere; its state lives in MySQL's account table and in env.
+    # Unconfigured (empty key or catalog) it exits(2) and stays down; the
+    # app then reports the demo feature as disabled and hides the entry.
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LOOKY_DEMO_BIND: "0.0.0.0:4500"
+      LOOKY_DEMO_VERIFY_PUBLIC_KEY: "${LOOKY_DEMO_VERIFY_PUBLIC_KEY:-}"
+      LOOKY_DEMO_DATASETS: "${LOOKY_DEMO_DATASETS:-}"
+      LOOKY_DEMO_MYSQL_HOST: "${LOOKY_DEMO_MYSQL_HOST:-}"
+      LOOKY_DEMO_MYSQL_PORT: "${LOOKY_DEMO_MYSQL_PORT:-}"
+      LOOKY_DEMO_MYSQL_ADMIN_USER: "${LOOKY_DEMO_MYSQL_ADMIN_USER:-}"
+      LOOKY_DEMO_MYSQL_ADMIN_PASSWORD: "${LOOKY_DEMO_MYSQL_ADMIN_PASSWORD:-}"
+    networks:
+      - default
+
   query-engine:
     image: ghcr.io/paranoid-software/looky/query-engine:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -179,6 +207,8 @@ services:
       LOOKY_VAULT_URL: http://secrets-vault:4000
       LOOKY_VAULT_SIGNING_PRIVATE_KEY: "${LOOKY_VAULT_SIGNING_PRIVATE_KEY:-}"
       LOOKY_VAULT_TOKEN_TTL_SECONDS: "${LOOKY_VAULT_TOKEN_TTL_SECONDS:-}"
+      LOOKY_DEMO_ENGINE_URL: http://demo-engine:4500
+      LOOKY_DEMO_SIGNING_PRIVATE_KEY: "${LOOKY_DEMO_SIGNING_PRIVATE_KEY:-}"
       WORKSPACES_ROOT: /workspaces
       DEFAULT_WORKSPACE_ID: "${DEFAULT_WORKSPACE_ID:-}"
       LOOKY_SESSION_SECRET: "${LOOKY_SESSION_SECRET:-}"
